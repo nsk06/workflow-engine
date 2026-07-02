@@ -1,0 +1,94 @@
+services:
+  api:
+    build: ./backend
+    ports:
+      - "${API_PORT:-18700}:8000"
+    environment:
+      AUTH_DISABLED: "false"
+      JWT_SECRET: workflow-demo-secret
+      DEMO_USERS: demo:demo,alice:alice,bob:bob
+      DATABASE_URL: sqlite:////data/workflow.db
+      OTEL_ENABLED: "true"
+      OTEL_EXPORTER_ENDPOINT: http://otel-collector:4317
+    volumes:
+      - workflow-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health')\""]
+      interval: 5s
+      retries: 5
+    depends_on:
+      - otel-collector
+
+  worker:
+    build: ./backend
+    command: ["python", "-m", "app.run_worker"]
+    ports:
+      - "${WORKER_METRICS_PORT:-18710}:9100"
+    environment:
+      DATABASE_URL: sqlite:////data/workflow.db
+      OTEL_ENABLED: "true"
+      OTEL_EXPORTER_ENDPOINT: http://otel-collector:4317
+      WORKER_ID: worker-1
+      WORKER_METRICS_PORT: "9100"
+    volumes:
+      - workflow-data:/data
+    depends_on:
+      api:
+        condition: service_healthy
+      otel-collector:
+        condition: service_started
+
+  ui:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: http://localhost:${API_PORT:-18700}
+    ports:
+      - "${UI_PORT:-18780}:80"
+    volumes:
+      - ./frontend/nginx.compose.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - api
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.114.0
+    command: ["--config=/etc/otel-collector.yaml"]
+    volumes:
+      - ./observability/otel-collector.yaml:/etc/otel-collector.yaml:ro
+    ports:
+      - "${OTEL_GRPC_PORT:-18717}:4317"
+      - "${OTEL_HTTP_PORT:-18718}:4318"
+
+  jaeger:
+    image: jaegertracing/all-in-one:1.57
+    ports:
+      - "${JAEGER_PORT:-18786}:16686"
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    volumes:
+      - ./observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      - "${PROMETHEUS_PORT:-18790}:9090"
+    depends_on:
+      - api
+      - worker
+
+  grafana:
+    image: grafana/grafana:11.3.1
+    ports:
+      - "${GRAFANA_PORT:-18701}:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+    volumes:
+      - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
+    depends_on:
+      - prometheus
+
+volumes:
+  workflow-data:

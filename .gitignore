@@ -1,0 +1,20 @@
+# Python
+backend/.venv/
+backend/data/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.env
+
+# Node
+frontend/node_modules/
+frontend/dist/
+
+# OS / IDE
+.DS_Store
+.idea/
+.vscode/
+
+# Local screenshots (optional artifacts)
+docs/e2e-screenshots/

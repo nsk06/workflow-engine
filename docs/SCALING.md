@@ -1,0 +1,29 @@
+# Scaling
+
+See [DESIGN.md](DESIGN.md) §3–4 for the full scaling story, saturation point, and failure modes.
+
+## Quick test
+
+```bash
+# Kubernetes
+kubectl scale deployment workflow-worker -n workflow-system --replicas=1
+k6 run -e API_URL=http://localhost:18700 loadtest/k6_workflows.js
+
+kubectl scale deployment workflow-worker -n workflow-system --replicas=4
+k6 run -e API_URL=http://localhost:18700 loadtest/k6_workflows.js
+
+kubectl scale deployment workflow-worker -n workflow-system --replicas=8
+k6 run -e API_URL=http://localhost:18700 loadtest/k6_workflows.js
+```
+
+## Saturation summary
+
+| Workers | Behavior |
+|---|---|
+| 1 | `workflow_pending_steps` rises; high completion latency |
+| 4 | Good throughput for laptop demo |
+| 8+ | SQLite `database is locked`; diminishing returns |
+
+## Production path
+
+External queue (SQS) + Postgres/RDS + HPA on `workflow_pending_steps`.

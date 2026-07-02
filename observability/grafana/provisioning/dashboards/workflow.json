@@ -1,0 +1,192 @@
+{
+  "title": "Workflow Engine",
+  "uid": "workflow-engine",
+  "timezone": "browser",
+  "refresh": "5s",
+  "time": { "from": "now-1h", "to": "now" },
+  "tags": ["workflow"],
+  "templating": {
+    "list": [
+      {
+        "name": "user",
+        "type": "query",
+        "label": "User",
+        "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+        "query": "label_values(workflow_runs_submitted_total{job=\"workflow-api\"}, user)",
+        "refresh": 2,
+        "includeAll": true,
+        "multi": true,
+        "allValue": ".*",
+        "current": { "text": "All", "value": "$__all" }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 100,
+      "type": "text",
+      "title": "Multi-user auth demo",
+      "gridPos": { "h": 5, "w": 24, "x": 0, "y": 0 },
+      "options": {
+        "mode": "markdown",
+        "content": "Use the **User** dropdown above to filter metrics per account (`demo`, `alice`, `bob`).\n\n- **UI:** http://localhost:18780 — login/logout; each user sees only their workflows\n- **Seed data:** `make seed-multi-user`\n- **Jaeger:** filter traces by tag `user=demo`"
+      }
+    },
+    {
+      "id": 101,
+      "type": "table",
+      "title": "Runs submitted by user",
+      "description": "sum by (user) (workflow_runs_submitted_total{job=\"workflow-api\"})",
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+      "gridPos": { "h": 6, "w": 12, "x": 0, "y": 5 },
+      "fieldConfig": { "defaults": { "unit": "short" } },
+      "options": { "showHeader": true, "sortBy": [{ "desc": true, "displayName": "Value" }] },
+      "targets": [
+        {
+          "expr": "sum by (user) (workflow_runs_submitted_total{job=\"workflow-api\"})",
+          "format": "table",
+          "instant": true,
+          "refId": "A"
+        }
+      ],
+      "transformations": [
+        { "id": "organize", "options": { "excludeByName": { "Time": true }, "renameByName": { "user": "User", "Value": "Runs" } } }
+      ]
+    },
+    {
+      "id": 102,
+      "type": "table",
+      "title": "Steps completed by user",
+      "description": "sum by (user) (workflow_steps_executed_total{job=\"workflow-worker\",status=\"completed\"})",
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+      "gridPos": { "h": 6, "w": 12, "x": 12, "y": 5 },
+      "fieldConfig": { "defaults": { "unit": "short" } },
+      "options": { "showHeader": true, "sortBy": [{ "desc": true, "displayName": "Value" }] },
+      "targets": [
+        {
+          "expr": "sum by (user) (workflow_steps_executed_total{job=\"workflow-worker\",status=\"completed\"})",
+          "format": "table",
+          "instant": true,
+          "refId": "A"
+        }
+      ],
+      "transformations": [
+        { "id": "organize", "options": { "excludeByName": { "Time": true }, "renameByName": { "user": "User", "Value": "Steps" } } }
+      ]
+    },
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Runs Submitted (filtered)",
+      "description": "workflow_runs_submitted_total{job=\"workflow-api\", user=~\"$user\"}",
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+      "gridPos": { "h": 4, "w": 8, "x": 0, "y": 11 },
+      "fieldConfig": { "defaults": { "unit": "short", "color": { "mode": "palette-classic" } } },
+      "options": { "colorMode": "value", "graphMode": "area", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "targets": [
+        {
+          "expr": "sum(workflow_runs_submitted_total{job=\"workflow-api\", user=~\"$user\"})",
+          "refId": "A",
+          "instant": true
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Steps Completed (filtered)",
+      "description": "sum(workflow_steps_executed_total{job=\"workflow-worker\", status=\"completed\", user=~\"$user\"})",
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+      "gridPos": { "h": 4, "w": 8, "x": 8, "y": 11 },
+      "fieldConfig": { "defaults": { "unit": "short", "color": { "mode": "palette-classic" } } },
+      "options": { "colorMode": "value", "graphMode": "area", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "targets": [
+        {
+          "expr": "sum(workflow_steps_executed_total{job=\"workflow-worker\",status=\"completed\",user=~\"$user\"})",
+          "refId": "A",
+          "instant": true
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Pending Steps (filtered)",
+      "description": "sum(workflow_pending_steps{job=\"workflow-worker\", user=~\"$user\"})",
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+      "gridPos": { "h": 4, "w": 8, "x": 16, "y": 11 },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 3 },
+              { "color": "red", "value": 10 }
+            ]
+          }
+        }
+      },
+      "options": { "colorMode": "value", "graphMode": "area", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "targets": [
+        {
+          "expr": "sum(workflow_pending_steps{job=\"workflow-worker\",user=~\"$user\"})",
+          "refId": "A",
+          "instant": true
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Runs submitted per user (per minute)",
+      "description": "sum by (user) (increase(workflow_runs_submitted_total{job=\"workflow-api\", user=~\"$user\"}[1m]))",
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 15 },
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "bars", "fillOpacity": 80, "stacking": { "mode": "normal" } },
+          "unit": "short"
+        }
+      },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum by (user) (increase(workflow_runs_submitted_total{job=\"workflow-api\",user=~\"$user\"}[1m]))",
+          "legendFormat": "{{user}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Steps executed per user (per second)",
+      "description": "sum by (user, step_type) (rate(workflow_steps_executed_total{job=\"workflow-worker\",status=\"completed\",user=~\"$user\"}[1m]))",
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 23 },
+      "fieldConfig": { "defaults": { "unit": "ops" } },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum by (user, step_type) (rate(workflow_steps_executed_total{job=\"workflow-worker\",status=\"completed\",user=~\"$user\"}[1m]))",
+          "legendFormat": "{{user}} / {{step_type}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "text",
+      "title": "PromQL reference",
+      "gridPos": { "h": 6, "w": 24, "x": 0, "y": 31 },
+      "options": {
+        "mode": "markdown",
+        "content": "| Metric | Query |\n|--------|-------|\n| Runs by user | `sum by (user) (workflow_runs_submitted_total{job=\"workflow-api\"})` |\n| Steps by user | `sum by (user) (workflow_steps_executed_total{job=\"workflow-worker\"})` |\n| Filter one user | add `user=\"alice\"` or use **User** dropdown |"
+      }
+    }
+  ],
+  "schemaVersion": 39,
+  "version": 4
+}
