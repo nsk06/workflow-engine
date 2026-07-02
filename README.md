@@ -64,6 +64,20 @@ make demo            # CLI walkthrough
 make loadtest        # k6 (100 VUs, 30s)
 ```
 
+## Local testing
+
+Three layers — run after `make up`:
+
+| Layer | Command | What it checks |
+|-------|---------|----------------|
+| **Unit / API** | `make test` | pytest: DAG validation, auth ownership, metrics labels |
+| **Stack E2E** | `make verify-e2e` | Health of API, UI, Prometheus, Grafana, Jaeger; JWT login; submit `linear` preset; poll until completed; `/metrics` exposed |
+| **Load** | `make loadtest` | k6 burst submit (100 VUs, 30s) — see [DESIGN.md §4](docs/DESIGN.md#4-load-testing) |
+
+`scripts/verify-e2e.sh` is the automated gate; screenshots in [docs/e2e-screenshots/](docs/e2e-screenshots/) show the manual UI path (multi-user auth, fanout preset).
+
+Full write-up: [DESIGN.md](docs/DESIGN.md) (design, observability, local + load testing, scaling).
+
 ## Kubernetes (kind)
 
 ```bash
@@ -75,8 +89,8 @@ kubectl scale deployment workflow-worker -n workflow-system --replicas=4
 
 | Doc | Contents |
 |-----|----------|
-| [DESIGN.md](docs/DESIGN.md) | Design, observability, **load testing (k6)**, scaling, saturation |
-| [ARCHITECTURE.md](docs/ARCHITECTURE.md) | Components and state machine |
+| [DESIGN.md](docs/DESIGN.md) | Design, observability, **local + load testing**, scaling |
+| [ARCHITECTURE.md](docs/ARCHITECTURE.md) | Mermaid diagrams, DAG/topo sort, auth E2E |
 | [OBSERVABILITY.md](docs/OBSERVABILITY.md) | Metrics, traces, Grafana |
 | [SCALING.md](docs/SCALING.md) | Load test procedure |
 

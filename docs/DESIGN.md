@@ -12,6 +12,8 @@ Build a system that accepts DAG workflows, executes steps asynchronously with re
 
 ### Architecture
 
+See [ARCHITECTURE.md](docs/ARCHITECTURE.md) for Mermaid diagrams (system, deploy, submit flow, auth, DAG fanout) and how topological sort vs runtime scheduling differ.
+
 ```
 Browser → React UI → FastAPI API → SQLite (runs + steps + queue)
                          ↑
@@ -98,7 +100,42 @@ Log in as each user in the UI — dashboards show only that user's runs; Grafana
 
 ---
 
-## 3. Load testing
+## 3. Local testing
+
+Run the stack first: `make up` (ports in `.env.ports`).
+
+### Unit tests (`make test`)
+
+pytest against the FastAPI app and engine (no docker required for most tests):
+
+- DAG validation — cycles, unknown deps, step limits
+- JWT ownership — users cannot read or cancel another user's runs
+- Metrics — `workflow_runs_submitted_total` includes `user` label
+
+### End-to-end verification (`make verify-e2e`)
+
+`scripts/verify-e2e.sh` exercises the **full docker compose stack**:
+
+| Check | Pass criteria |
+|-------|---------------|
+| API | `/health`, `/ready` |
+| Observability | Prometheus, Grafana, Jaeger reachable |
+| UI | nginx serves the React app |
+| Auth | `POST /auth/login` as `demo` returns JWT |
+| Workflow | `POST /runs` with `linear` preset → poll until `status=completed` |
+| Metrics | `GET /metrics` contains `workflow_` series |
+
+Optional seed data for multi-user demos: `make seed-multi-user` (2 runs each for demo, alice, bob).
+
+Manual UI validation is documented with screenshots in [e2e-screenshots/](e2e-screenshots/) and [ARCHITECTURE.md](ARCHITECTURE.md) (auth E2E flow).
+
+### CLI demo (`make demo`)
+
+Interactive curl walkthrough — login, submit, poll status — without opening the browser.
+
+---
+
+## 4. Load testing
 
 Load tests validate two separate concerns: **(A) the API accepts burst submits while staying fast**, and **(B) workers drain the queue until saturation** (SQLite lock or too few replicas).
 
@@ -260,7 +297,7 @@ Grafana **Runs submitted by user** table should show growth only on `demo` durin
 
 ---
 
-## 4. Scaling demonstration & saturation point
+## 5. Scaling demonstration & saturation point
 
 ### Procedure
 
@@ -272,7 +309,7 @@ make seed-multi-user
 # Watch workflow_pending_steps rise during burst submits
 ```
 
-**Kubernetes (horizontal workers)** — see [§3 Load testing](#3-load-testing) for full procedure:
+**Kubernetes (horizontal workers)** — see [§4 Load testing](#4-load-testing) for full procedure:
 
 ```bash
 make kind-up && make deploy
@@ -287,7 +324,7 @@ kubectl scale deployment workflow-worker -n workflow-system --replicas=8
 k6 run -e API_URL=http://localhost:18700 loadtest/k6_workflows.js
 ```
 
-Default profile: **100 VUs, 30s**, `linear` preset (~4 steps per run). See §3 for workload math and Grafana signals.
+Default profile: **100 VUs, 30s**, `linear` preset (~4 steps per run). See §4 for workload math and Grafana signals.
 
 ### Expected behavior
 
@@ -310,7 +347,7 @@ Evidence:
 
 ---
 
-## 5. What breaks under load
+## 6. What breaks under load
 
 | Failure mode | Symptom | Root cause |
 |--------------|---------|------------|
@@ -327,7 +364,7 @@ What does **not** break (by design):
 
 ---
 
-## 6. Changes made to improve the system
+## 7. Changes made to improve the system
 
 | Change | Impact |
 |--------|--------|
@@ -343,7 +380,7 @@ What does **not** break (by design):
 
 ---
 
-## 7. If I had more time
+## 8. If I had more time
 
 ### Production hardening (priority order)
 

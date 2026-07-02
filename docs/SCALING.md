@@ -2,9 +2,10 @@
 
 See [DESIGN.md](DESIGN.md) for the full story:
 
-- **§3 Load testing** — k6 install, script profile, what to watch, interpreting results
-- **§4 Scaling & saturation** — worker replica sweep (1 → 4 → 8)
-- **§5 What breaks under load** — failure modes
+- **§3 Local testing** — pytest, `verify-e2e`, CLI demo
+- **§4 Load testing** — k6 install, script profile, what to watch, interpreting results
+- **§5 Scaling & saturation** — worker replica sweep (1 → 4 → 8)
+- **§6 What breaks under load** — failure modes
 
 ## Quick test
 
