@@ -15,6 +15,3 @@ frontend/dist/
 .DS_Store
 .idea/
 .vscode/
-
-# Local screenshots (optional artifacts)
-docs/e2e-screenshots/

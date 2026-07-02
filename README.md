@@ -24,6 +24,35 @@ Ports in `.env.ports`:
 
 **Users:** `demo`/`demo`, `alice`/`alice`, `bob`/`bob`
 
+## E2E screenshots
+
+Browser-automation captures from the local stack (`docs/e2e-screenshots/`). They show multi-user auth and the submit → complete flow.
+
+| # | Screenshot | What it shows |
+|---|------------|---------------|
+| 1 | [01-dashboard-demo.png](docs/e2e-screenshots/01-dashboard-demo.png) | `demo` logged in — only demo's completed runs |
+| 2 | [02-submit-fanout.png](docs/e2e-screenshots/02-submit-fanout.png) | Submit page with **fanout-fanin** preset selected |
+| 3 | [03-run-completed-fanout.png](docs/e2e-screenshots/03-run-completed-fanout.png) | Run detail — all steps **COMPLETED**, step timeline |
+| 4 | [04-dashboard-alice-empty.png](docs/e2e-screenshots/04-dashboard-alice-empty.png) | After logout → `alice` login — empty dashboard (no demo runs) |
+
+### UI walkthrough
+
+**Demo user dashboard** — submitted runs visible only to `demo`:
+
+![Demo user dashboard](docs/e2e-screenshots/01-dashboard-demo.png)
+
+**Submit fanout workflow:**
+
+![Submit fanout preset](docs/e2e-screenshots/02-submit-fanout.png)
+
+**Completed run with step timeline:**
+
+![Completed fanout run](docs/e2e-screenshots/03-run-completed-fanout.png)
+
+**Alice sees no other user's workflows:**
+
+![Alice empty dashboard](docs/e2e-screenshots/04-dashboard-alice-empty.png)
+
 ## Commands
 
 ```bash
@@ -46,7 +75,7 @@ kubectl scale deployment workflow-worker -n workflow-system --replicas=4
 
 | Doc | Contents |
 |-----|----------|
-| [DESIGN.md](docs/DESIGN.md) | Design, observability, scaling, saturation, improvements |
+| [DESIGN.md](docs/DESIGN.md) | Design, observability, **load testing (k6)**, scaling, saturation |
 | [ARCHITECTURE.md](docs/ARCHITECTURE.md) | Components and state machine |
 | [OBSERVABILITY.md](docs/OBSERVABILITY.md) | Metrics, traces, Grafana |
 | [SCALING.md](docs/SCALING.md) | Load test procedure |
@@ -60,5 +89,5 @@ observability/  Prometheus, Grafana, OTel configs
 k8s/         kind manifests
 scripts/     deploy, verify-e2e, seed-multi-user
 loadtest/    k6
-docs/        design & architecture
+docs/        design, architecture, e2e-screenshots/
 ```

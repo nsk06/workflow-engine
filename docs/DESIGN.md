@@ -98,7 +98,169 @@ Log in as each user in the UI — dashboards show only that user's runs; Grafana
 
 ---
 
-## 3. Scaling demonstration & saturation point
+## 3. Load testing
+
+Load tests validate two separate concerns: **(A) the API accepts burst submits while staying fast**, and **(B) workers drain the queue until saturation** (SQLite lock or too few replicas).
+
+### Tooling
+
+| Item | Detail |
+|------|--------|
+| **Runner** | [k6](https://k6.io/) (Grafana k6) |
+| **Script** | `loadtest/k6_workflows.js` |
+| **Make target** | `make loadtest` |
+| **Auth** | `setup()` logs in once as `demo`; all VUs share that JWT |
+
+Install k6:
+
+```bash
+# macOS
+brew install k6
+
+# Linux
+sudo gpg -k && sudo gpg --no-default-keyring --keyring /usr/share/keyrings/k6-archive-keyring.gpg \
+  --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys C5AD17C747E3415A3642D57D77C6C491D6AC1D69
+echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
+sudo apt-get update && sudo apt-get install k6
+```
+
+### Default test profile
+
+```javascript
+// loadtest/k6_workflows.js
+export const options = {
+  vus: 100,        // 100 concurrent virtual users
+  duration: "30s", // fixed duration (not ramping)
+};
+```
+
+Each iteration:
+
+1. `POST /runs` with `{"preset":"linear"}` and `Authorization: Bearer <token>`
+2. Assert HTTP **202 Accepted**
+3. `sleep(0.1)` — 100ms think time between submits
+
+**Rough order of magnitude:** 100 VUs × ~30s ≈ **hundreds to low thousands** of workflow submissions (depends on API latency). Each `linear` run creates **4 steps** (~300ms of simulated `sleep` work plus transforms), so the worker must complete **~4× submit count** step executions.
+
+### Workload under test (`linear` preset)
+
+| Step | Type | Depends on | Work |
+|------|------|------------|------|
+| `validate` | transform | — | instant |
+| `enrich` | transform | validate | instant |
+| `process` | sleep | enrich | 300ms |
+| `finalize` | transform | process | instant |
+
+End-to-end run time with **1 worker**: ~0.5–1.5s (poll interval + DB + sleep). Under load, completion time is dominated by **queue depth**, not step duration.
+
+### How to run
+
+**Docker compose (1 worker — good for backlog demo):**
+
+```bash
+make up
+# optional baseline
+curl -sf http://localhost:18700/metrics | grep workflow_pending_steps
+
+make loadtest
+# or explicitly:
+k6 run -e API_URL=http://localhost:18700 loadtest/k6_workflows.js
+```
+
+**Kubernetes (scale workers between runs):**
+
+```bash
+make kind-up && make deploy
+
+# Port-forward API if needed (kind ingress) or use NodePort
+export API_URL=http://localhost:18700
+
+for REPLICAS in 1 4 8; do
+  kubectl scale deployment workflow-worker -n workflow-system --replicas=$REPLICAS
+  kubectl rollout status deployment/workflow-worker -n workflow-system
+  echo "=== workers=$REPLICAS ==="
+  k6 run -e API_URL=$API_URL loadtest/k6_workflows.js
+  sleep 30   # let queue drain before next run
+done
+```
+
+### What to watch during a run
+
+| Where | Signal | Healthy | Saturated |
+|-------|--------|---------|-----------|
+| **k6 stdout** | `http_req_duration` p95 | Stable, low hundreds of ms | Climbing |
+| **k6 stdout** | `checks{submit 202}` | 100% pass | Drops if API overloaded |
+| **Grafana** | `workflow_pending_steps` | Brief spike, returns to 0 | Stays high through test |
+| **Grafana** | `rate(workflow_steps_executed_total)` | Rises with workers | Plateaus at 8 workers |
+| **Grafana** | `workflow_worker_poll_latency_seconds` p95 | Low | High — DB contention |
+| **Worker logs** | `database is locked` | Absent | Frequent at 8 workers |
+| **Prometheus** | `workflow_runs_submitted_total{user="demo"}` | Jumps by submit count | — |
+
+Open Grafana before starting k6: http://localhost:18701/d/workflow-engine/workflow-engine?refresh=5s — filter **User = demo** (load test user).
+
+### Interpreting k6 output
+
+Example fields at end of run:
+
+```
+http_req_duration..............: avg=45ms  p(95)=120ms
+http_req_failed................: 0.00%
+checks.........................: 100.00% ✓ submit 202
+iterations.....................: 2847    # total submit attempts
+vus............................: 100     max=100
+```
+
+- **Submit path is healthy** if `submit 202` checks pass and `http_req_failed` ≈ 0%. The API is designed to return quickly (202) even when workers are behind.
+- **Worker saturation** is *not* visible in k6 alone — use `workflow_pending_steps` and step completion rate in Grafana during and after the run.
+- After the test ends, pending steps should drain to **0** within ~1–5 minutes (depends on worker count and backlog size).
+
+### Tuning the test
+
+Override via k6 CLI without editing the script:
+
+```bash
+# Lighter smoke test
+k6 run --vus 10 --duration 15s -e API_URL=http://localhost:18700 loadtest/k6_workflows.js
+
+# Heavier burst
+k6 run --vus 200 --duration 60s -e API_URL=http://localhost:18700 loadtest/k6_workflows.js
+```
+
+To test other presets, change `preset` in `k6_workflows.js`:
+
+| Preset | Steps | Notes |
+|--------|-------|-------|
+| `linear` | 4 | Default; steady load |
+| `fanout` | 5 | Parallel branches; more DB writes per run |
+| `flaky` | 3 | Retries; amplifies queue pressure |
+
+### Multi-user load (extension)
+
+The default script uses a **single** `demo` token. To stress per-user isolation and per-user metrics:
+
+1. Run separate k6 scenarios per user (different `setup()` tokens), or
+2. Use k6 `executor` with multiple scenarios in one script.
+
+Grafana **Runs submitted by user** table should show growth only on `demo` during the default test.
+
+### Worker config that affects load results
+
+| Env var | Default | Effect |
+|---------|---------|--------|
+| `WORKER_POLL_INTERVAL_MS` | 200 | Lower = faster drain, more DB polls |
+| `WORKER_LEASE_SECONDS` | 60 | Must exceed step time + lock wait |
+| SQLite `busy_timeout` | tuned in `db.py` | Retries on lock instead of immediate fail |
+
+### Recommended interview demo flow
+
+1. Scale workers to **1** → run k6 → show backlog rising in Grafana
+2. Scale to **4** → re-run k6 → backlog clears faster; higher step rate
+3. Scale to **8** → re-run k6 → show flat step rate + `database is locked` in logs
+4. Verbalize: *"Saturation is SQLite single-writer; production would use SQS + Postgres."*
+
+---
+
+## 4. Scaling demonstration & saturation point
 
 ### Procedure
 
@@ -110,23 +272,22 @@ make seed-multi-user
 # Watch workflow_pending_steps rise during burst submits
 ```
 
-**Kubernetes (horizontal workers):**
+**Kubernetes (horizontal workers)** — see [§3 Load testing](#3-load-testing) for full procedure:
 
 ```bash
 make kind-up && make deploy
 
 kubectl scale deployment workflow-worker -n workflow-system --replicas=1
 k6 run -e API_URL=http://localhost:18700 loadtest/k6_workflows.js
-# Note: pending_steps rises, completion latency grows
 
 kubectl scale deployment workflow-worker -n workflow-system --replicas=4
-k6 run loadtest/k6_workflows.js
+k6 run -e API_URL=http://localhost:18700 loadtest/k6_workflows.js
 
 kubectl scale deployment workflow-worker -n workflow-system --replicas=8
-k6 run loadtest/k6_workflows.js
+k6 run -e API_URL=http://localhost:18700 loadtest/k6_workflows.js
 ```
 
-`loadtest/k6_workflows.js`: 100 VUs, 30s, each submits `linear` preset (4 steps, ~1s total).
+Default profile: **100 VUs, 30s**, `linear` preset (~4 steps per run). See §3 for workload math and Grafana signals.
 
 ### Expected behavior
 
@@ -149,7 +310,7 @@ Evidence:
 
 ---
 
-## 4. What breaks under load
+## 5. What breaks under load
 
 | Failure mode | Symptom | Root cause |
 |--------------|---------|------------|
@@ -166,7 +327,7 @@ What does **not** break (by design):
 
 ---
 
-## 5. Changes made to improve the system
+## 6. Changes made to improve the system
 
 | Change | Impact |
 |--------|--------|
@@ -182,7 +343,7 @@ What does **not** break (by design):
 
 ---
 
-## 6. If I had more time
+## 7. If I had more time
 
 ### Production hardening (priority order)
 

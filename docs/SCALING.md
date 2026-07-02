@@ -1,11 +1,14 @@
 # Scaling
 
-See [DESIGN.md](DESIGN.md) §3–4 for the full scaling story, saturation point, and failure modes.
+See [DESIGN.md](DESIGN.md) for the full story:
+
+- **§3 Load testing** — k6 install, script profile, what to watch, interpreting results
+- **§4 Scaling & saturation** — worker replica sweep (1 → 4 → 8)
+- **§5 What breaks under load** — failure modes
 
 ## Quick test
 
 ```bash
-# Kubernetes
 kubectl scale deployment workflow-worker -n workflow-system --replicas=1
 k6 run -e API_URL=http://localhost:18700 loadtest/k6_workflows.js
 
