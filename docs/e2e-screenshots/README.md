@@ -1,6 +1,8 @@
 # E2E screenshots
 
-Captured via local browser automation against `http://localhost:18780` (ports in `.env.ports`).
+Captured against the local docker compose stack (ports in `.env.ports`).
+
+## UI flow (`http://localhost:18780`)
 
 | File | Description |
 |------|-------------|
@@ -11,4 +13,14 @@ Captured via local browser automation against `http://localhost:18780` (ports in
 
 Reproduce: `make up` → open UI → login as demo → submit fanout → logout → login as alice.
 
-Referenced from the root [README](../README.md#e2e-screenshots).
+## Observability (`http://localhost:18701`, `http://localhost:18790`)
+
+| File | Description |
+|------|-------------|
+| `05-grafana-dashboard-demo.png` | Grafana workflow-engine dashboard, **User = demo** |
+| `06-prometheus-targets.png` | Prometheus targets — API and worker jobs **UP** |
+| `07-prometheus-workflow-metrics.png` | Prometheus graph for `workflow_runs_submitted_total` |
+
+Reproduce: `make up` → submit workflows → `./scripts/capture-obs-screenshots.sh`
+
+Referenced from the root [README](../README.md) and [OBSERVABILITY.md](../OBSERVABILITY.md).

@@ -8,6 +8,22 @@
 | Traces | OTel → Jaeger | `user`, `run_id`, `step_key` span attributes |
 | Logs | structlog JSON (stdout) | `run_id`, `step_key`, `user` fields |
 
+## Screenshots
+
+From `docs/e2e-screenshots/` after `make up` and submitting workflows:
+
+| Screenshot | What it shows |
+|------------|---------------|
+| [05-grafana-dashboard-demo.png](e2e-screenshots/05-grafana-dashboard-demo.png) | Per-user Grafana dashboard (`demo`) |
+| [06-prometheus-targets.png](e2e-screenshots/06-prometheus-targets.png) | Scrape targets for API + worker |
+| [07-prometheus-workflow-metrics.png](e2e-screenshots/07-prometheus-workflow-metrics.png) | `workflow_runs_submitted_total` in Prometheus |
+
+![Grafana dashboard](e2e-screenshots/05-grafana-dashboard-demo.png)
+
+![Prometheus targets](e2e-screenshots/06-prometheus-targets.png)
+
+Re-capture: `./scripts/capture-obs-screenshots.sh`
+
 ## Demo walkthrough
 
 1. `make seed-multi-user` — populate metrics for demo, alice, bob

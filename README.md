@@ -53,6 +53,30 @@ Browser-automation captures from the local stack (`docs/e2e-screenshots/`). They
 
 ![Alice empty dashboard](docs/e2e-screenshots/04-dashboard-alice-empty.png)
 
+## Observability screenshots
+
+Captured from the local Prometheus/Grafana stack after `make up` and submitting workflows as `demo`.
+
+| # | Screenshot | What it shows |
+|---|------------|---------------|
+| 5 | [05-grafana-dashboard-demo.png](docs/e2e-screenshots/05-grafana-dashboard-demo.png) | Grafana **workflow-engine** dashboard — **User = demo**, runs/steps charts |
+| 6 | [06-prometheus-targets.png](docs/e2e-screenshots/06-prometheus-targets.png) | Prometheus **Targets** — `workflow-api` and `workflow-worker` scraped |
+| 7 | [07-prometheus-workflow-metrics.png](docs/e2e-screenshots/07-prometheus-workflow-metrics.png) | Prometheus graph — `workflow_runs_submitted_total` |
+
+**Grafana dashboard (demo user):**
+
+![Grafana workflow dashboard](docs/e2e-screenshots/05-grafana-dashboard-demo.png)
+
+**Prometheus scrape targets:**
+
+![Prometheus targets](docs/e2e-screenshots/06-prometheus-targets.png)
+
+**Prometheus workflow submit metric:**
+
+![Prometheus workflow metrics](docs/e2e-screenshots/07-prometheus-workflow-metrics.png)
+
+Reproduce: `make up` → submit workflows in UI → `./scripts/capture-obs-screenshots.sh`
+
 ## Commands
 
 ```bash
@@ -101,7 +125,7 @@ backend/     FastAPI API + async worker
 frontend/    React UI
 observability/  Prometheus, Grafana, OTel configs
 k8s/         kind manifests
-scripts/     deploy, verify-e2e, seed-multi-user
+scripts/     deploy, verify-e2e, seed-multi-user, capture-obs-screenshots
 loadtest/    k6
 docs/        design, architecture, e2e-screenshots/
 ```

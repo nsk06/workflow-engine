@@ -98,6 +98,8 @@ make seed-multi-user   # 2 workflows each for demo, alice, bob
 
 Log in as each user in the UI — dashboards show only that user's runs; Grafana tables split metrics by `user`.
 
+Screenshots: [e2e-screenshots/05-grafana-dashboard-demo.png](e2e-screenshots/05-grafana-dashboard-demo.png), [06-prometheus-targets.png](e2e-screenshots/06-prometheus-targets.png), [07-prometheus-workflow-metrics.png](e2e-screenshots/07-prometheus-workflow-metrics.png). Re-capture with `./scripts/capture-obs-screenshots.sh`.
+
 ---
 
 ## 3. Local testing
